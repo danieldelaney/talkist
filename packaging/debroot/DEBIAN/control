@@ -5,7 +5,6 @@ Priority: optional
 Architecture: amd64
 Depends: libwebkit2gtk-4.1-0, libayatana-appindicator3-1, libasound2t64, tar, bzip2, packagekit-tools
 Recommends: gnome-shell-extension-appindicator
-Installed-Size: 38048
 Maintainer: dd <dd@localhost>
 Description: Talkist local-only push-to-talk dictation
  Push-to-talk voice dictation powered by NVIDIA Parakeet, running fully
