@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Talkist",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "com.talkist.app",
   "build": {
     "frontendDist": "../dist"

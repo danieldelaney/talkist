@@ -4,7 +4,7 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::io::{BufWriter, Read, Write};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -107,11 +107,14 @@ fn download_and_install(app: &AppHandle, manifest: &UpdateManifest) -> Result<()
     }
     verify_deb(&path, manifest)?;
     let _ = app.emit_to("settings", "update-installing", ());
-    let status = Command::new("/usr/bin/pkcon")
-        .args(["--noninteractive", "--allow-untrusted", "install-local"])
+    let mut child = Command::new("/usr/bin/pkcon")
+        .args(["--allow-untrusted", "install-local"])
         .arg(&path)
-        .status()
+        .stdin(Stdio::piped())
+        .spawn()
         .context("PackageKit is unavailable")?;
+    child.stdin.take().context("PackageKit input unavailable")?.write_all(b"y\n")?;
+    let status = child.wait()?;
     if !status.success() { return Err(anyhow!("PackageKit did not install the update")); }
     let installed = Command::new("dpkg-query")
         .args(["-W", "-f=${Version}", "talkist"])
