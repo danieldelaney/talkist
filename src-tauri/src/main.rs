@@ -99,7 +99,7 @@ fn main() {
                 .menu(&menu)
                 .show_menu_on_left_click(true)
                 .on_menu_event(|app, event| match event.id().as_ref() {
-                    "settings" => present_settings(app),
+                    "settings" => { let _ = present_settings_from_menu(app); }
                     "quit" => {
                         app.state::<AppState>().quitting.store(true, Ordering::Relaxed);
                         app.exit(0);
@@ -133,24 +133,45 @@ fn present_settings(app: &AppHandle) {
     std::thread::spawn(move || {
         // Let the tray menu close before asking GNOME to raise the window.
         std::thread::sleep(std::time::Duration::from_millis(100));
-        let _ = open_settings(&handle);
+        if let Ok(window) = settings_window(&handle) {
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+        }
     });
 }
 
-fn open_settings(app: &AppHandle) -> tauri::Result<()> {
+fn settings_window(app: &AppHandle) -> tauri::Result<tauri::WebviewWindow> {
     if let Some(window) = app.get_webview_window("settings") {
-        window.show()?;
-        window.unminimize()?;
-        window.set_focus()?;
-        return Ok(());
+        return Ok(window);
     }
-    WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
+    let window = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
         .title("Talkist")
         .inner_size(430.0, 280.0)
         .resizable(false)
         .center()
         .build()?;
+    Ok(window)
+}
+
+#[cfg(target_os = "linux")]
+fn present_settings_from_menu(app: &AppHandle) -> tauri::Result<()> {
+    use gtk::prelude::GtkWindowExt;
+
+    let timestamp = gtk::current_event_time();
+    let window = settings_window(app)?;
+    window.show()?;
+    window.unminimize()?;
+    window.gtk_window()?.present_with_time(timestamp);
     Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn present_settings_from_menu(app: &AppHandle) -> tauri::Result<()> {
+    let window = settings_window(app)?;
+    window.show()?;
+    window.unminimize()?;
+    window.set_focus()
 }
 
 fn set_tray_status(app: &AppHandle, status: Status) {
