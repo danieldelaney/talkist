@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  deb-amd64:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev libasound2-dev pkg-config jq minisign
+      - name: Build deb
+        run: scripts/build-deb.sh
+      - name: Create signed update manifest
+        env:
+          SIGNING_KEY: ${{ secrets.TALKIST_SIGNING_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          deb="talkist_${version}_amd64.deb"
+          test "$(dpkg-deb --field "$deb" Package)" = talkist
+          test "$(dpkg-deb --field "$deb" Version)" = "$version"
+          sha="$(sha256sum "$deb" | cut -d' ' -f1)"
+          size="$(stat -c %s "$deb")"
+          jq -cn \
+            --arg version "$version" \
+            --arg url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${deb}" \
+            --arg sha256 "$sha" \
+            --argjson size "$size" \
+            '{version:$version,package:"talkist",architecture:"amd64",url:$url,size:$size,sha256:$sha256}' > update.json
+          printf '%s' "$SIGNING_KEY" > signing.key
+          chmod 600 signing.key
+          minisign -S -W -s signing.key -m update.json
+          rm signing.key
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" \
+            "talkist_${version}_amd64.deb" update.json update.json.minisig \
+            --title "Talkist $GITHUB_REF_NAME" --generate-notes --latest

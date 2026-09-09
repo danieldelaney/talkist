@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: #16181d;
+        color: #e7e7e7;
+        font-family: system-ui, sans-serif;
+        user-select: none;
+      }
+      progress {
+        width: 320px;
+        height: 14px;
+        accent-color: #0d9488;
+      }
+      #label {
+        font-size: 13px;
+        opacity: 0.85;
+      }
+    </style>
+  </head>
+  <body>
+    <progress id="bar" max="100" value="0"></progress>
+    <div id="label">downloading speech model...</div>
+    <script>
+      const ev = window.__TAURI__.event;
+      const bar = document.getElementById("bar");
+      const label = document.getElementById("label");
+      ev.listen("model-progress", (e) => { bar.value = e.payload; });
+      ev.listen("model-install", () => {
+        document.getElementById("label").textContent = "installing speech model...";
+        bar.removeAttribute("value");
+      });
+      ev.listen("model-error", (e) => {
+        document.getElementById("label").textContent = "error: " + e.payload;
+        bar.removeAttribute("value");
+      });
+    </script>
+  </body>
+</html>

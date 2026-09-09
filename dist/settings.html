@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+      body { box-sizing: border-box; margin: 0; height: 100vh; padding: 24px 28px 18px; display: flex; flex-direction: column; background: #16181d; color: #f1f1f1; }
+      main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 11px; }
+      .prompt { color: #9ba1ac; font-size: 12px; }
+      button { border: 1px solid #454a54; border-radius: 9px; padding: 7px 13px; background: #262a31; color: inherit; font: inherit; }
+      button:hover { background: #30353e; }
+      #hotkey { min-width: 170px; min-height: 66px; padding: 10px 24px 15px; border: 1px solid #5a606b; border-bottom-width: 4px; border-radius: 10px; background: linear-gradient(#30343c, #252930); box-shadow: inset 0 1px rgba(255,255,255,.08), 0 2px 4px rgba(0,0,0,.25); font-size: 24px; font-weight: 600; letter-spacing: 0.02em; }
+      #hotkey:active { transform: translateY(2px); border-bottom-width: 2px; margin-bottom: 2px; }
+      #hotkey.capturing { border-color: #aaa; }
+      #error { min-height: 16px; color: #e8a0a0; font-size: 11px; text-align: center; }
+      .bottom { color: #858b96; font-size: 11px; }
+      .startup { display: flex; align-items: center; justify-content: center; gap: 9px; margin-bottom: 13px; cursor: pointer; }
+      .switch { position: relative; width: 34px; height: 18px; border-radius: 999px; background: #4a4e56; transition: background 120ms ease; }
+      .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #f2f2f2; transition: transform 120ms ease; }
+      #startup { position: absolute; opacity: 0; pointer-events: none; }
+      #startup:checked + .switch { background: #777d87; }
+      #startup:checked + .switch::after { transform: translateX(16px); }
+      footer { display: flex; justify-content: center; align-items: center; gap: 10px; }
+      #update { display: none; padding: 5px 10px; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="prompt">Push-to-talk hotkey</span>
+      <button id="hotkey">F9</button>
+      <div id="error"></div>
+    </main>
+    <div class="bottom">
+      <label class="startup" for="startup">
+        <span>Start at login</span>
+        <input id="startup" type="checkbox" />
+        <span class="switch" aria-hidden="true"></span>
+      </label>
+      <footer>
+        <span id="version"></span>
+        <button id="update">Update</button>
+      </footer>
+    </div>
+    <script>
+      const invoke = window.__TAURI__.core.invoke;
+      const hotkey = document.getElementById("hotkey");
+      const startup = document.getElementById("startup");
+      const error = document.getElementById("error");
+
+      invoke("get_settings").then((settings) => {
+        hotkey.textContent = settings.hotkey;
+        startup.checked = settings.startAtLogin;
+        document.getElementById("version").textContent = `Version ${settings.version}`;
+        if (settings.updateVersion) showUpdate(settings.updateVersion);
+      });
+
+      function showUpdate(version) {
+        const update = document.getElementById("update");
+        update.textContent = `Update to ${version}`;
+        update.style.display = "block";
+      }
+      window.__TAURI__.event.listen("update-available", (e) => showUpdate(e.payload.version));
+      window.__TAURI__.event.listen("update-progress", (e) => {
+        document.getElementById("update").textContent = `Downloading ${e.payload}%`;
+      });
+      window.__TAURI__.event.listen("update-installing", () => {
+        document.getElementById("update").textContent = "Installing...";
+      });
+      window.__TAURI__.event.listen("update-error", (e) => {
+        error.textContent = e.payload;
+        invoke("get_settings").then((settings) => showUpdate(settings.updateVersion));
+      });
+      document.getElementById("update").addEventListener("click", async (event) => {
+        event.currentTarget.disabled = true;
+        error.textContent = "";
+        try { await invoke("install_update"); }
+        catch (message) { error.textContent = message; event.currentTarget.disabled = false; }
+      });
+
+      hotkey.addEventListener("click", () => {
+        hotkey.textContent = "Press shortcut";
+        hotkey.classList.add("capturing");
+        error.textContent = "";
+      });
+
+      window.addEventListener("keydown", async (event) => {
+        if (!hotkey.classList.contains("capturing")) return;
+        event.preventDefault();
+        if (["Control", "Shift", "Alt", "Meta"].includes(event.key)) return;
+        const key = event.key === " " ? "Space" : event.key.length === 1 ? event.key.toUpperCase() : event.key;
+        const parts = [];
+        if (event.ctrlKey) parts.push("Ctrl");
+        if (event.altKey) parts.push("Alt");
+        if (event.shiftKey) parts.push("Shift");
+        if (event.metaKey) parts.push("Super");
+        parts.push(key);
+        const value = parts.join("+");
+        try {
+          await invoke("set_hotkey", { hotkey: value });
+          hotkey.textContent = value;
+        } catch (message) {
+          error.textContent = message;
+          const settings = await invoke("get_settings");
+          hotkey.textContent = settings.hotkey;
+        }
+        hotkey.classList.remove("capturing");
+      });
+
+      startup.addEventListener("change", async () => {
+        try {
+          await invoke("set_start_at_login", { enabled: startup.checked });
+        } catch (message) {
+          error.textContent = message;
+          startup.checked = !startup.checked;
+        }
+      });
+    </script>
+  </body>
+</html>

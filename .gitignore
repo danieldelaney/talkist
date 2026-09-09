@@ -1,0 +1,6 @@
+/src-tauri/target/
+/src-tauri/gen/
+/packaging/debroot/usr/bin/
+/*.deb
+*.tar.bz2
+*.log
