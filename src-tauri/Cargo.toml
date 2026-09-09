@@ -1,6 +1,6 @@
 [package]
 name = "talkist"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local-only push-to-talk dictation"
 edition = "2021"
 
