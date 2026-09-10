@@ -15,7 +15,7 @@ pub enum Cmd {
     StopSend,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Status {
     Idle,
     Recording,

@@ -14,7 +14,7 @@ use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
 
 struct AppState {
     config: Mutex<Config>,
@@ -76,6 +76,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_settings,
             set_hotkey,
+            begin_hotkey_capture,
+            cancel_hotkey_capture,
             set_start_at_login,
             updater::install_update
         ])
@@ -91,7 +93,7 @@ fn main() {
                 .unwrap_or_else(|e| panic!("invalid hotkey {hotkey:?}: {e}"));
             app.global_shortcut().register(hot)?;
 
-            let settings = MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
+            let settings = MenuItem::with_id(app, "settings", "Talkist settings...", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&settings, &quit])?;
             TrayIconBuilder::with_id("main")
@@ -109,11 +111,7 @@ fn main() {
                 .build(app)?;
 
             let handle = app.handle().clone();
-            std::thread::spawn(move || {
-                while let Ok(status) = status_rx.recv() {
-                    set_tray_status(&handle, status);
-                }
-            });
+            std::thread::spawn(move || run_tray_status_loop(handle, status_rx));
             updater::spawn_checks(app.handle().clone());
             Ok(())
         })
@@ -147,7 +145,7 @@ fn settings_window(app: &AppHandle) -> tauri::Result<tauri::WebviewWindow> {
     }
     let window = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
         .title("Talkist")
-        .inner_size(430.0, 280.0)
+        .inner_size(430.0, 300.0)
         .resizable(false)
         .center()
         .build()?;
@@ -185,7 +183,79 @@ fn set_tray_status(app: &AppHandle, status: Status) {
     let _ = tray.set_tooltip(Some(tooltip));
 }
 
-fn on_shortcut(app: &AppHandle, _sc: &Shortcut, event: ShortcutEvent) {
+fn run_tray_status_loop(app: AppHandle, rx: std::sync::mpsc::Receiver<Status>) {
+    use std::sync::mpsc::RecvTimeoutError;
+    use std::time::{Duration, Instant};
+
+    const TRANSCRIBING_DELAY: Duration = Duration::from_millis(150);
+    const MIN_TRANSCRIBING_TIME: Duration = Duration::from_millis(400);
+
+    let mut displayed = Status::Idle;
+    let mut pending: Option<(Status, Instant)> = None;
+    let mut transcribing_since = None;
+
+    loop {
+        let event = if let Some((_, deadline)) = pending {
+            match rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+                Ok(status) => Some(Some(status)),
+                Err(RecvTimeoutError::Timeout) => Some(None),
+                Err(RecvTimeoutError::Disconnected) => None,
+            }
+        } else {
+            rx.recv().ok().map(Some)
+        };
+
+        let Some(event) = event else { break };
+        if let Some(status) = event {
+            let now = Instant::now();
+            match status {
+                Status::Recording => {
+                    pending = None;
+                    transcribing_since = None;
+                    if displayed != status {
+                        set_tray_status(&app, status);
+                        displayed = status;
+                    }
+                }
+                Status::Transcribing => {
+                    if displayed != Status::Transcribing {
+                        pending = Some((status, now + TRANSCRIBING_DELAY));
+                    }
+                }
+                Status::Idle => {
+                    if matches!(pending, Some((Status::Transcribing, _))) {
+                        pending = None;
+                        transcribing_since = None;
+                    } else if displayed == Status::Transcribing {
+                        let deadline = transcribing_since.unwrap_or(now) + MIN_TRANSCRIBING_TIME;
+                        if deadline > now {
+                            pending = Some((status, deadline));
+                            continue;
+                        }
+                    } else {
+                        pending = None;
+                    }
+
+                    if displayed != status {
+                        set_tray_status(&app, status);
+                        displayed = status;
+                    }
+                }
+            }
+            continue;
+        }
+
+        let Some((status, _)) = pending.take() else { continue };
+        set_tray_status(&app, status);
+        displayed = status;
+        transcribing_since = (status == Status::Transcribing).then(Instant::now);
+    }
+}
+
+fn on_shortcut(app: &AppHandle, sc: &Shortcut, event: ShortcutEvent) {
+    if sc.key == Code::CapsLock {
+        suppress_caps_lock();
+    }
     let state = app.state::<AppState>();
     let Some(tx) = state.cmds.lock().unwrap().clone() else { return };
     let cmd = match event.state() {
@@ -194,6 +264,38 @@ fn on_shortcut(app: &AppHandle, _sc: &Shortcut, event: ShortcutEvent) {
     };
     let _ = tx.send(cmd);
 }
+
+// The X server toggles the Lock modifier for CapsLock even when the key is
+// grabbed as a global shortcut, so every press would flip caps on. Reset the
+// lock state on each event to keep CapsLock a pure push-to-talk key while it
+// is assigned; normal caps behavior returns once the hotkey changes or the
+// app exits.
+#[cfg(target_os = "linux")]
+fn suppress_caps_lock() {
+    use x11_dl::xlib::Xlib;
+
+    const XKB_USE_CORE_KBD: std::os::raw::c_uint = 0x0100;
+    const LOCK_MASK: std::os::raw::c_uint = 0x02;
+
+    thread_local! {
+        static XLIB: Option<Xlib> = Xlib::open().ok();
+    }
+
+    XLIB.with(|xlib| {
+        let Some(xlib) = xlib else { return };
+        unsafe {
+            let display = (xlib.XOpenDisplay)(std::ptr::null());
+            if display.is_null() {
+                return;
+            }
+            (xlib.XkbLockModifiers)(display, XKB_USE_CORE_KBD, LOCK_MASK, 0);
+            (xlib.XCloseDisplay)(display);
+        }
+    });
+}
+
+#[cfg(not(target_os = "linux"))]
+fn suppress_caps_lock() {}
 
 #[tauri::command]
 fn get_settings(state: tauri::State<'_, AppState>) -> SettingsSnapshot {
@@ -208,19 +310,63 @@ fn get_settings(state: tauri::State<'_, AppState>) -> SettingsSnapshot {
 
 #[tauri::command]
 async fn set_hotkey(app: AppHandle, state: tauri::State<'_, AppState>, hotkey: String) -> Result<(), String> {
-    let new: Shortcut = hotkey.parse::<Shortcut>().map_err(|e| e.to_string())?;
+    let shortcuts = app.global_shortcut();
     let old_text = state.config.lock().unwrap().hotkey.clone();
     let old: Shortcut = old_text.parse::<Shortcut>().map_err(|e| e.to_string())?;
-    if new.id() == old.id() { return Ok(()) }
+    let new: Shortcut = hotkey.parse::<Shortcut>().map_err(|e| {
+        let _ = shortcuts.register(old);
+        e.to_string()
+    })?;
 
-    app.global_shortcut().register(new).map_err(|e| e.to_string())?;
-    if let Err(error) = app.global_shortcut().unregister(old) {
-        let _ = app.global_shortcut().unregister(new);
-        return Err(error.to_string());
+    // begin_hotkey_capture unregisters the old shortcut so the settings
+    // window can see that key, so the old one may legitimately be gone.
+    if !shortcuts.is_registered(new) {
+        if let Err(e) = shortcuts.register(new) {
+            let _ = shortcuts.register(old);
+            return Err(e.to_string());
+        }
     }
-    let mut config = state.config.lock().unwrap();
-    config.hotkey = hotkey;
-    config.save().map_err(|e| e.to_string())
+    if new.id() != old.id() {
+        let _ = shortcuts.unregister(old);
+    }
+
+    let save = {
+        let mut config = state.config.lock().unwrap();
+        config.hotkey = hotkey;
+        let result = config.save();
+        if result.is_err() {
+            config.hotkey = old_text;
+        }
+        result
+    };
+    if let Err(e) = save {
+        let _ = shortcuts.unregister(new);
+        let _ = shortcuts.register(old);
+        return Err(e.to_string());
+    }
+
+    if new.key == Code::CapsLock {
+        suppress_caps_lock();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn begin_hotkey_capture(app: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let hotkey = state.config.lock().unwrap().hotkey.clone();
+    let shortcut = hotkey.parse::<Shortcut>().map_err(|e| e.to_string())?;
+    let _ = app.global_shortcut().unregister(shortcut);
+    Ok(())
+}
+
+#[tauri::command]
+fn cancel_hotkey_capture(app: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let hotkey = state.config.lock().unwrap().hotkey.clone();
+    let shortcut = hotkey.parse::<Shortcut>().map_err(|e| e.to_string())?;
+    if !app.global_shortcut().is_registered(shortcut) {
+        app.global_shortcut().register(shortcut).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]

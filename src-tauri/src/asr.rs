@@ -42,13 +42,12 @@ pub fn spawn(
             recognizer.decode(&stream);
             if let Some(res) = stream.get_result() {
                 let text = res.text.trim();
-                if text.is_empty() {
-                    continue;
-                }
-                eprintln!("transcript: {text}");
-                if let Some(p) = paster.as_mut() {
-                    if let Err(e) = p.paste(text) {
-                        eprintln!("paste failed: {e:#}");
+                if !text.is_empty() {
+                    eprintln!("transcript: {text}");
+                    if let Some(p) = paster.as_mut() {
+                        if let Err(e) = p.paste(text) {
+                            eprintln!("paste failed: {e:#}");
+                        }
                     }
                 }
             }
