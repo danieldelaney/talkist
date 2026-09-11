@@ -48,3 +48,52 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             "talkist_${version}_amd64.deb" update.json update.json.minisig \
             --title "Talkist $GITHUB_REF_NAME" --generate-notes --latest
+
+  macos-arm64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: brew install xcodegen minisign
+      - name: Build and notarize
+        env:
+          VERSION: ${GITHUB_REF_NAME#v}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SIGNING_CERT_BASE64: ${{ secrets.APPLE_DEVID_CERT_BASE64 }}
+          SIGNING_CERT_PASSWORD: ${{ secrets.APPLE_DEVID_CERT_PASSWORD }}
+        run: macos/scripts/build.sh
+      - name: Create signed update manifest
+        env:
+          SIGNING_KEY: ${{ secrets.TALKIST_SIGNING_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          zip="Talkist_${version}_arm64.zip"
+          test -f "macos/build/$zip"
+          sha="$(shasum -a 256 "macos/build/$zip" | cut -d' ' -f1)"
+          size="$(stat -f%z "macos/build/$zip")"
+          jq -cn \
+            --arg version "$version" \
+            --arg url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${zip}" \
+            --arg sha256 "$sha" \
+            --argjson size "$size" \
+            '{version:$version,package:"talkist",architecture:"arm64",url:$url,size:$size,sha256:$sha256}' > update-mac.json
+          printf '%s' "$SIGNING_KEY" > signing.key
+          chmod 600 signing.key
+          minisign -S -W -s signing.key -m update-mac.json
+          rm signing.key
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # The deb job creates the release; wait for it to exist, then upload.
+          for i in $(seq 1 60); do
+            gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && break
+            sleep 10
+          done
+          gh release upload "$GITHUB_REF_NAME" \
+            "macos/build/Talkist_${version}_arm64.zip" update-mac.json update-mac.json.minisig \
+            --clobber
