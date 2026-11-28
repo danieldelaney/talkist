@@ -1,0 +1,33 @@
+id: com.talkist.app
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: talkist
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=pulseaudio
+  - --device=dri
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.portal.GlobalShortcuts
+  - --talk-name=org.freedesktop.portal.RemoteDesktop
+  - --talk-name=org.freedesktop.portal.Clipboard
+  - --talk-name=org.freedesktop.portal.Background
+
+modules:
+  - name: talkist
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 stage/talkist /app/bin/talkist
+      - install -d /app/lib
+      - cp -a stage/lib/* /app/lib/
+      - install -Dm644 com.talkist.app.desktop /app/share/applications/com.talkist.app.desktop
+      - install -Dm644 com.talkist.app.metainfo.xml /app/share/metainfo/com.talkist.app.metainfo.xml
+      - install -Dm644 stage/icons/32x32.png /app/share/icons/hicolor/32x32/apps/com.talkist.app.png
+      - install -Dm644 stage/icons/128x128.png /app/share/icons/hicolor/128x128/apps/com.talkist.app.png
+      - install -Dm644 stage/icons/256x256.png /app/share/icons/hicolor/256x256/apps/com.talkist.app.png
+    sources:
+      - type: dir
+        path: .

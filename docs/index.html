@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Talkist — Local-only dictation for Linux and macOS</title>
+    <meta name="description" content="Dead-simple local dictation for macOS and Linux. Install, hold a hotkey, talk, release. No configuration required. No cloud ever." />
+    <link rel="icon" type="image/png" href="icon.png" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #16181d;
+        --border: #2e333e;
+        --border-strong: #454a56;
+        --text: #f1f2f4;
+        --muted: #9ba1ac;
+        --dim: #6f7682;
+        --accent: #407fee;
+        --accent-hover: #538df2;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      main {
+        flex: 1;
+        width: 100%;
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 48px 24px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 16px;
+      }
+
+      .app-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 16px;
+        filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.45));
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 36px;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+      }
+
+      .tagline {
+        margin: 0;
+        max-width: 520px;
+        font-size: 16px;
+        color: var(--muted);
+      }
+
+      .install-box {
+        margin-top: 12px;
+        width: fit-content;
+        max-width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 10px 12px 10px 18px;
+        border-radius: 12px;
+        border: 1px solid var(--border-strong);
+        background: #101217;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+      }
+
+      .install-cmd {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13px;
+        color: #e6ebf4;
+        overflow-x: auto;
+        white-space: nowrap;
+        text-align: left;
+      }
+
+      .btn-copy {
+        flex-shrink: 0;
+        padding: 7px 14px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: var(--accent);
+        color: #fff;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 120ms ease, transform 80ms ease;
+      }
+
+      .btn-copy:hover { background: var(--accent-hover); }
+      .btn-copy:active { transform: translateY(1px); }
+
+      footer {
+        width: 100%;
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 20px 24px 28px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 13px;
+        color: var(--dim);
+      }
+
+      footer a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+
+      footer a:hover { color: var(--text); text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img class="app-icon" src="icon.png" alt="Talkist icon" width="72" height="72" />
+      <h1>Talkist</h1>
+      <p class="tagline">Dead-simple local dictation for macOS and Linux. Install, hold a hotkey, talk, release. No configuration required. No cloud ever.</p>
+      <div class="install-box">
+        <span class="install-cmd" id="install-cmd">curl -fsSL https://danieldelaney.net/talkist/install.sh | sh</span>
+        <button class="btn-copy" id="copy-btn" type="button">Copy</button>
+      </div>
+    </main>
+
+    <footer>
+      <span>Built by <a href="https://danieldelaney.net">Daniel Delaney</a></span>
+      <a href="https://github.com/danieldelaney/talkist">GitHub</a>
+    </footer>
+
+    <script>
+      const copyBtn = document.getElementById("copy-btn");
+      const installCmd = document.getElementById("install-cmd").textContent;
+      copyBtn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(installCmd);
+          copyBtn.textContent = "Copied";
+          setTimeout(() => { copyBtn.textContent = "Copy"; }, 1800);
+        } catch {
+          const range = document.createRange();
+          range.selectNodeContents(document.getElementById("install-cmd"));
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      });
+    </script>
+  </body>
+</html>

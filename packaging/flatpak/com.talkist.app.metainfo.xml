@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.talkist.app</id>
+  <name>Talkist</name>
+  <summary>Local-only push-to-talk voice dictation</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+  <developer id="net.danieldelaney">
+    <name>Daniel Delaney</name>
+  </developer>
+  <description>
+    <p>
+      Talkist is a local-only push-to-talk dictation utility. Hold a global
+      hotkey, speak, release it, and the transcript is typed or pasted at your
+      cursor.
+    </p>
+    <p>
+      Powered by NVIDIA Parakeet v3 through sherpa-onnx (25 European languages
+      with automatic language detection), running entirely on your machine with
+      no accounts, cloud transcription, or telemetry.
+    </p>
+  </description>
+  <launchable type="desktop-id">com.talkist.app.desktop</launchable>
+  <url type="homepage">https://danieldelaney.net/talkist/</url>
+  <url type="bugtracker">https://github.com/danieldelaney/talkist/issues</url>
+  <categories>
+    <category>Utility</category>
+    <category>AudioVideo</category>
+  </categories>
+  <keywords>
+    <keyword>dictation</keyword>
+    <keyword>speech</keyword>
+    <keyword>voice</keyword>
+    <keyword>transcription</keyword>
+    <keyword>stt</keyword>
+  </keywords>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="1.0.0" date="2026-11-27" />
+  </releases>
+</component>

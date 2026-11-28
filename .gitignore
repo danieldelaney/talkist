@@ -1,0 +1,16 @@
+/src-tauri/target/
+/src-tauri/gen/
+/macos/Talkist.xcodeproj/
+/macos/build/
+/packaging/debroot/usr/bin/
+/packaging/rpmbuild/
+/packaging/flatpak/stage/
+/packaging/flatpak/build-dir/
+/packaging/flatpak/repo/
+/packaging/flatpak/.flatpak-builder/
+/*.deb
+/*.rpm
+/*.flatpak
+*.tar.bz2
+*.log
+.DS_Store

@@ -1,0 +1,498 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        height: 100vh;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #16181d;
+        color: #f1f1f1;
+        user-select: none;
+      }
+      .view {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+      .hidden {
+        display: none !important;
+      }
+
+      /* Setup / permission rows (matches macOS ModelSetupRow & PermissionRow) */
+      .setup-card {
+        width: 100%;
+        padding: 9px 12px;
+        border-radius: 8px;
+        background: #20232a;
+        border: 1px solid #323741;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+      .setup-row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-height: 22px;
+      }
+      .setup-icon {
+        width: 16px;
+        height: 16px;
+        flex: 0 0 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(241, 241, 241, 0.22);
+        border-top-color: #e5e7eb;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      .warn-icon {
+        color: #f59e0b;
+        width: 16px;
+        height: 16px;
+      }
+      .ok-icon {
+        color: #22c55e;
+        width: 16px;
+        height: 16px;
+      }
+      .pending-icon {
+        color: #f59e0b;
+        width: 16px;
+        height: 16px;
+      }
+      .row-copy {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+      }
+      .setup-text {
+        font-size: 12px;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .setup-sub {
+        font-size: 10px;
+        color: #9ba1ac;
+      }
+      .row-badge {
+        font-size: 10px;
+        color: #9ba1ac;
+      }
+      .small-btn {
+        border: 1px solid #4a505c;
+        border-radius: 6px;
+        padding: 3px 10px;
+        background: #2c313a;
+        color: #f1f1f1;
+        font: inherit;
+        font-size: 11px;
+        font-weight: 500;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      .small-btn:hover {
+        background: #363c47;
+      }
+      .progress-track {
+        width: 100%;
+        height: 5px;
+        border-radius: 999px;
+        background: #2e333d;
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 999px;
+        background: #14b8a6;
+        transition: width 0.15s ease-out;
+      }
+
+      /* Hotkey picker (matches macOS SettingsView + KeycapButtonStyle) */
+      .prompt {
+        color: #9ba1ac;
+        font-size: 12px;
+      }
+      #hotkey {
+        min-width: 156px;
+        min-height: 58px;
+        padding: 8px 22px 12px;
+        border: 1px solid #5a606b;
+        border-bottom-width: 3px;
+        border-radius: 10px;
+        background: linear-gradient(#30343c, #252930);
+        box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 2px 4px rgba(0, 0, 0, 0.25);
+        color: #f1f1f1;
+        font: inherit;
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        cursor: pointer;
+        outline: none;
+        transition: transform 0.08s ease-out, border-color 0.1s ease-out;
+      }
+      #hotkey:hover {
+        background: linear-gradient(#353a43, #292e36);
+      }
+      #hotkey:active {
+        transform: translateY(1px);
+        border-bottom-width: 2px;
+        margin-bottom: 1px;
+      }
+      #hotkey.capturing {
+        border-color: #aaaaaa;
+      }
+      #hint {
+        min-height: 15px;
+        font-size: 11px;
+        text-align: center;
+        color: rgba(155, 161, 172, 0.78);
+      }
+      #hint.capturing {
+        color: #9ba1ac;
+      }
+      #hint.warn {
+        color: #f59e0b;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="setup-view" class="view">
+      <div id="model-card" class="setup-card">
+        <div class="setup-row">
+          <div class="setup-icon">
+            <div id="setup-spinner" class="spinner"></div>
+            <svg id="setup-warn" class="warn-icon hidden" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6Zm0 8a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd" />
+            </svg>
+            <svg id="setup-ok" class="ok-icon hidden" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="row-copy">
+            <div id="setup-text" class="setup-text">Loading speech model…</div>
+          </div>
+          <span id="model-badge" class="row-badge hidden">Ready</span>
+          <button id="retry-btn" class="small-btn hidden" type="button">Retry</button>
+        </div>
+        <div id="progress-track" class="progress-track hidden">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+      </div>
+
+      <div id="paste-card" class="setup-card hidden">
+        <div class="setup-row">
+          <div class="setup-icon">
+            <svg id="paste-pending" class="pending-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <circle cx="10" cy="10" r="7" />
+            </svg>
+            <svg id="paste-ok" class="ok-icon hidden" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="row-copy">
+            <div class="setup-text">Pasting</div>
+            <div id="paste-sub" class="setup-sub">Type dictated text at cursor</div>
+          </div>
+          <span id="paste-badge" class="row-badge hidden">Allowed</span>
+          <button id="paste-btn" class="small-btn" type="button">Allow</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="ready-view" class="view hidden">
+      <span class="prompt">Push-to-talk hotkey</span>
+      <button id="hotkey" type="button">F9</button>
+      <div id="hint">Hold F9, then release to paste</div>
+    </div>
+
+    <script>
+      const invoke = window.__TAURI__.core.invoke;
+      const listen = window.__TAURI__.event.listen;
+
+      const setupView = document.getElementById("setup-view");
+      const setupSpinner = document.getElementById("setup-spinner");
+      const setupWarn = document.getElementById("setup-warn");
+      const setupOk = document.getElementById("setup-ok");
+      const setupText = document.getElementById("setup-text");
+      const modelBadge = document.getElementById("model-badge");
+      const retryBtn = document.getElementById("retry-btn");
+      const progressTrack = document.getElementById("progress-track");
+      const progressFill = document.getElementById("progress-fill");
+
+      const pasteCard = document.getElementById("paste-card");
+      const pastePending = document.getElementById("paste-pending");
+      const pasteOk = document.getElementById("paste-ok");
+      const pasteSub = document.getElementById("paste-sub");
+      const pasteBadge = document.getElementById("paste-badge");
+      const pasteBtn = document.getElementById("paste-btn");
+
+      const readyView = document.getElementById("ready-view");
+      const hotkeyBtn = document.getElementById("hotkey");
+      const hintEl = document.getElementById("hint");
+
+      const CODE_MAP = {
+        F1: "F1", F2: "F2", F3: "F3", F4: "F4", F5: "F5", F6: "F6",
+        F7: "F7", F8: "F8", F9: "F9", F10: "F10", F11: "F11", F12: "F12",
+        CapsLock: "CapsLock",
+        Space: "Space",
+        Tab: "Tab",
+        Backspace: "Backspace",
+        Insert: "Insert",
+        Delete: "Delete",
+        Home: "Home",
+        End: "End",
+        PageUp: "PageUp",
+        PageDown: "PageDown",
+        ArrowUp: "Up",
+        ArrowDown: "Down",
+        ArrowLeft: "Left",
+        ArrowRight: "Right",
+        Backquote: "Backquote",
+        Minus: "Minus",
+        Equal: "Equal",
+        BracketLeft: "BracketLeft",
+        BracketRight: "BracketRight",
+        Backslash: "Backslash",
+        Semicolon: "Semicolon",
+        Quote: "Quote",
+        Comma: "Comma",
+        Period: "Period",
+        Slash: "Slash",
+      };
+      for (let i = 0; i < 26; i++) {
+        const ch = String.fromCharCode(65 + i);
+        CODE_MAP["Key" + ch] = ch;
+      }
+      for (let i = 0; i <= 9; i++) {
+        CODE_MAP["Digit" + i] = String(i);
+      }
+
+      const MODIFIER_CODES = new Set([
+        "ControlLeft", "ControlRight",
+        "ShiftLeft", "ShiftRight",
+        "AltLeft", "AltRight",
+        "MetaLeft", "MetaRight",
+      ]);
+
+      let appState = null;
+      let capturing = false;
+      let captureHint = null;
+      let captureTimer = null;
+
+      function clearCaptureTimer() {
+        if (captureTimer !== null) {
+          clearTimeout(captureTimer);
+          captureTimer = null;
+        }
+      }
+
+      function render() {
+        if (!appState) return;
+
+        if (!appState.isFullyReady) {
+          setupView.classList.remove("hidden");
+          readyView.classList.add("hidden");
+
+          const hasError = Boolean(appState.modelError);
+          const modelDone = Boolean(appState.modelReady);
+          setupSpinner.classList.toggle("hidden", hasError || modelDone);
+          setupWarn.classList.toggle("hidden", !hasError);
+          setupOk.classList.toggle("hidden", !modelDone);
+          modelBadge.classList.toggle("hidden", !modelDone);
+          retryBtn.classList.toggle("hidden", !hasError);
+
+          setupText.textContent = modelDone
+            ? "Speech model"
+            : appState.modelError ||
+              appState.modelStatus ||
+              "Downloading speech model…";
+          setupText.title = appState.modelErrorDetail || "";
+
+          const showProgress =
+            !modelDone && !hasError && typeof appState.modelProgress === "number";
+          progressTrack.classList.toggle("hidden", !showProgress);
+          if (showProgress) {
+            progressFill.style.width = `${appState.modelProgress}%`;
+          }
+
+          const showPaste = Boolean(appState.needsPastePermission);
+          pasteCard.classList.toggle("hidden", !showPaste);
+          if (showPaste) {
+            const granted = Boolean(appState.pasteReady);
+            pastePending.classList.toggle("hidden", granted);
+            pasteOk.classList.toggle("hidden", !granted);
+            pasteSub.classList.toggle("hidden", granted);
+            pasteBadge.classList.toggle("hidden", !granted);
+            pasteBtn.classList.toggle("hidden", granted);
+          }
+          return;
+        }
+
+        setupView.classList.add("hidden");
+        readyView.classList.remove("hidden");
+
+        const display = appState.hotkeyDisplay || appState.hotkey || "F9";
+        hotkeyBtn.classList.toggle("capturing", capturing);
+        hotkeyBtn.textContent = capturing ? "Press key…" : display;
+
+        hintEl.classList.remove("capturing", "warn");
+        if (captureHint) {
+          hintEl.textContent = captureHint;
+          hintEl.classList.add("warn");
+        } else if (capturing) {
+          hintEl.textContent = "Esc to cancel";
+          hintEl.classList.add("capturing");
+        } else if (appState.isWayland && display === "Not set") {
+          hintEl.textContent = "Click to choose a shortcut";
+        } else {
+          hintEl.textContent = `Hold ${display}, then release to paste`;
+        }
+      }
+
+      function applyState(next) {
+        appState = next;
+        if (!next.isFullyReady && capturing) {
+          capturing = false;
+          captureHint = null;
+          clearCaptureTimer();
+        }
+        render();
+      }
+
+      async function beginCapture() {
+        if (capturing || !appState || !appState.isFullyReady) return;
+        if (appState.isWayland) {
+          await invoke("configure_wayland_hotkey");
+          return;
+        }
+        captureHint = null;
+        try {
+          await invoke("begin_hotkey_capture");
+        } catch (message) {
+          captureHint = String(message);
+          render();
+          return;
+        }
+        capturing = true;
+        clearCaptureTimer();
+        captureTimer = setTimeout(() => cancelCapture(), 15000);
+        render();
+      }
+
+      async function cancelCapture() {
+        clearCaptureTimer();
+        if (!capturing) return;
+        capturing = false;
+        captureHint = null;
+        hotkeyBtn.blur();
+        render();
+        try {
+          await invoke("cancel_hotkey_capture");
+        } catch (message) {
+          captureHint = String(message);
+          render();
+        }
+      }
+
+      retryBtn.addEventListener("click", () => {
+        invoke("retry_model_setup");
+      });
+
+      pasteBtn.addEventListener("click", () => {
+        invoke("request_paste_permission");
+      });
+
+      hotkeyBtn.addEventListener("click", () => {
+        if (capturing) {
+          cancelCapture();
+        } else {
+          beginCapture();
+        }
+      });
+
+      window.addEventListener("keydown", async (event) => {
+        if (!capturing) return;
+        event.preventDefault();
+
+        if (MODIFIER_CODES.has(event.code) || ["Control", "Shift", "Alt", "Meta"].includes(event.key)) {
+          return;
+        }
+        if (event.code === "Escape" || event.key === "Escape") {
+          cancelCapture();
+          return;
+        }
+
+        const mappedKey = CODE_MAP[event.code];
+        if (!mappedKey) {
+          captureHint = "Key not supported";
+          render();
+          return;
+        }
+
+        const parts = [];
+        if (event.ctrlKey) parts.push("Ctrl");
+        if (event.altKey) parts.push("Alt");
+        if (event.shiftKey) parts.push("Shift");
+        if (event.metaKey) parts.push("Super");
+        parts.push(mappedKey);
+        const value = parts.join("+");
+
+        clearCaptureTimer();
+        capturing = false;
+        captureHint = null;
+        hotkeyBtn.blur();
+        try {
+          await invoke("set_hotkey", { hotkey: value });
+        } catch (message) {
+          captureHint = String(message);
+        }
+        render();
+      });
+
+      window.addEventListener("blur", () => {
+        if (capturing) cancelCapture();
+      });
+      window.addEventListener("pagehide", () => {
+        if (capturing) {
+          clearCaptureTimer();
+          capturing = false;
+          invoke("cancel_hotkey_capture");
+        }
+      });
+
+      listen("app-state", (event) => applyState(event.payload));
+      invoke("get_state").then(applyState);
+    </script>
+  </body>
+</html>

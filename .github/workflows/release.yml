@@ -1,0 +1,223 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  deb:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            fp_arch: x86_64
+            runner: ubuntu-24.04
+            manifest: update.json
+            fp_manifest: update-flatpak.json
+          - arch: arm64
+            fp_arch: aarch64
+            runner: ubuntu-24.04-arm
+            manifest: update-arm64.json
+            fp_manifest: update-flatpak-aarch64.json
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev libasound2-dev pkg-config jq minisign flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y flathub org.gnome.Platform//50 org.gnome.Sdk//50
+      - name: Build deb
+        run: scripts/build-deb.sh
+      - name: Build flatpak
+        run: scripts/build-flatpak.sh
+      - name: Create signed update manifests
+        env:
+          SIGNING_KEY: ${{ secrets.TALKIST_SIGNING_PRIVATE_KEY }}
+          ARCH: ${{ matrix.arch }}
+          FP_ARCH: ${{ matrix.fp_arch }}
+          MANIFEST: ${{ matrix.manifest }}
+          FP_MANIFEST: ${{ matrix.fp_manifest }}
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          version="${tag_version%%-*}"
+          deb="talkist_${version}_${ARCH}.deb"
+          test "$(dpkg-deb --field "$deb" Package)" = talkist
+          test "$(dpkg-deb --field "$deb" Version)" = "$version"
+          test "$(dpkg-deb --field "$deb" Architecture)" = "$ARCH"
+          sha="$(sha256sum "$deb" | cut -d' ' -f1)"
+          size="$(stat -c %s "$deb")"
+          jq -cn \
+            --arg version "$version" \
+            --arg arch "$ARCH" \
+            --arg url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${deb}" \
+            --arg sha256 "$sha" \
+            --argjson size "$size" \
+            '{version:$version,package:"talkist",architecture:$arch,url:$url,size:$size,sha256:$sha256}' > "$MANIFEST"
+
+          fp="talkist-${version}-${FP_ARCH}.flatpak"
+          test -f "$fp"
+          fp_sha="$(sha256sum "$fp" | cut -d' ' -f1)"
+          fp_size="$(stat -c %s "$fp")"
+          jq -cn \
+            --arg version "$version" \
+            --arg arch "$FP_ARCH" \
+            --arg url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${fp}" \
+            --arg sha256 "$fp_sha" \
+            --argjson size "$fp_size" \
+            '{version:$version,package:"talkist",architecture:$arch,url:$url,size:$size,sha256:$sha256}' > "$FP_MANIFEST"
+
+          printf '%s' "$SIGNING_KEY" > signing.key
+          chmod 600 signing.key
+          minisign -S -W -s signing.key -m "$MANIFEST"
+          minisign -S -W -s signing.key -m "$FP_MANIFEST"
+          rm signing.key
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-flatpak-${{ matrix.arch }}
+          path: |
+            talkist_*_${{ matrix.arch }}.deb
+            talkist-*-${{ matrix.fp_arch }}.flatpak
+            ${{ matrix.manifest }}
+            ${{ matrix.manifest }}.minisig
+            ${{ matrix.fp_manifest }}
+            ${{ matrix.fp_manifest }}.minisig
+
+  rpm:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+            manifest: update-rpm.json
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            manifest: update-rpm-aarch64.json
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: fedora:43
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y cargo rustc cmake gcc-c++ jq webkit2gtk4.1-devel \
+            libayatana-appindicator-gtk3-devel librsvg2-devel openssl-devel \
+            alsa-lib-devel pkgconf-pkg-config rpm-build git minisign
+      - uses: actions/checkout@v4
+      - name: Build rpm
+        run: scripts/build-rpm.sh
+      - name: Create signed update manifest
+        env:
+          SIGNING_KEY: ${{ secrets.TALKIST_SIGNING_PRIVATE_KEY }}
+          ARCH: ${{ matrix.arch }}
+          MANIFEST: ${{ matrix.manifest }}
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          version="${tag_version%%-*}"
+          rpmpkg="talkist-${version}-1.${ARCH}.rpm"
+          test "$(rpm -qp --qf '%{NAME}' "$rpmpkg")" = talkist
+          test "$(rpm -qp --qf '%{VERSION}' "$rpmpkg")" = "$version"
+          test "$(rpm -qp --qf '%{ARCH}' "$rpmpkg")" = "$ARCH"
+          sha="$(sha256sum "$rpmpkg" | cut -d' ' -f1)"
+          size="$(stat -c %s "$rpmpkg")"
+          jq -cn \
+            --arg version "$version" \
+            --arg arch "$ARCH" \
+            --arg url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${rpmpkg}" \
+            --arg sha256 "$sha" \
+            --argjson size "$size" \
+            '{version:$version,package:"talkist",architecture:$arch,url:$url,size:$size,sha256:$sha256}' > "$MANIFEST"
+          printf '%s' "$SIGNING_KEY" > signing.key
+          chmod 600 signing.key
+          minisign -S -W -s signing.key -m "$MANIFEST"
+          rm signing.key
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpm-${{ matrix.arch }}
+          path: |
+            talkist-*-1.${{ matrix.arch }}.rpm
+            ${{ matrix.manifest }}
+            ${{ matrix.manifest }}.minisig
+
+  macos-arm64:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: brew install xcodegen minisign
+      - name: Build and notarize
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SIGNING_CERT_BASE64: ${{ secrets.APPLE_DEVID_CERT_BASE64 }}
+          SIGNING_CERT_PASSWORD: ${{ secrets.APPLE_DEVID_CERT_PASSWORD }}
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          VERSION="${tag_version%%-*}" macos/scripts/build.sh
+      - name: Create signed update manifest
+        env:
+          SIGNING_KEY: ${{ secrets.TALKIST_SIGNING_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          version="${tag_version%%-*}"
+          zip="Talkist_${version}_arm64.zip"
+          test -f "macos/build/$zip"
+          cp "macos/build/$zip" "$zip"
+          sha="$(shasum -a 256 "$zip" | cut -d' ' -f1)"
+          size="$(stat -f%z "$zip")"
+          jq -cn \
+            --arg version "$version" \
+            --arg url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${zip}" \
+            --arg sha256 "$sha" \
+            --argjson size "$size" \
+            '{version:$version,package:"talkist",architecture:"arm64",url:$url,size:$size,sha256:$sha256}' > update-mac.json
+          printf '%s' "$SIGNING_KEY" > signing.key
+          chmod 600 signing.key
+          # -l writes legacy Ed25519 ("Ed") signatures verified by Minisign.swift.
+          minisign -S -l -W -s signing.key -m update-mac.json
+          rm signing.key
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: |
+            Talkist_*_arm64.zip
+            update-mac.json
+            update-mac.json.minisig
+
+  publish:
+    needs: [deb, rpm, macos-arm64]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ls -la release-assets
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            # Prerelease (e.g. v0.1.8-rc.1): publicly downloadable for testing
+            # the in-app updater without moving /releases/latest.
+            gh release create "$GITHUB_REF_NAME" release-assets/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Talkist $GITHUB_REF_NAME" --generate-notes --prerelease
+          else
+            # Stable release candidate: keep as draft until smoke-tested, then
+            # promote to Latest manually in GitHub Releases.
+            gh release create "$GITHUB_REF_NAME" release-assets/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Talkist $GITHUB_REF_NAME" --generate-notes --draft
+          fi

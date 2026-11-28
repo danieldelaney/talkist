@@ -1,0 +1,71 @@
+name: Talkist
+options:
+  bundleIdPrefix: com.talkist
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "13.0"
+packages:
+  SherpaOnnx:
+    url: https://github.com/k2-fsa/sherpa-onnx
+    exactVersion: 1.13.8
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "13.0"
+    ARCHS: arm64
+    ONLY_ACTIVE_ARCH: true
+    ENABLE_HARDENED_RUNTIME: true
+    CODE_SIGN_IDENTITY: "Developer ID Application: Daniel Delaney (367XU828P7)"
+    DEVELOPMENT_TEAM: 367XU828P7
+    CODE_SIGN_STYLE: Manual
+    ENABLE_USER_SCRIPT_SANDBOXING: false
+targets:
+  Talkist:
+    type: application
+    platform: macOS
+    sources:
+      - Talkist
+    dependencies:
+      - package: SherpaOnnx
+        product: sherpa-onnx
+        embed: false
+    info:
+      path: Talkist/Info.plist
+      properties:
+        CFBundleName: Talkist
+        CFBundleDisplayName: Talkist
+        CFBundleIdentifier: com.talkist.app
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundlePackageType: APPL
+        LSUIElement: true
+        LSMinimumSystemVersion: "13.0"
+        NSMicrophoneUsageDescription: Talkist needs microphone access to transcribe your speech.
+        CFBundleIconName: AppIcon
+        CFBundleIconFile: AppIcon
+    entitlements:
+      path: Talkist/Talkist.entitlements
+      properties:
+        com.apple.security.device.audio-input: true
+        com.apple.security.cs.allow-jit: true
+        com.apple.security.cs.disable-library-validation: true
+    settings:
+      base:
+        PRODUCT_NAME: Talkist
+        PRODUCT_BUNDLE_IDENTIFIER: com.talkist.app
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: 1
+        CODE_SIGN_ENTITLEMENTS: Talkist/Talkist.entitlements
+        INFOPLIST_KEY_LSUIElement: true
+    postBuildScripts:
+      - name: Remove unused static stub frameworks
+        script: |
+          # sherpa-onnx and onnxruntime are statically linked into the Talkist
+          # binary, but Xcode still embeds empty codeless stub .framework
+          # bundles (with malformed/circular symlinks on some Xcode versions)
+          # that trip Gatekeeper (spctl / codesign --deep --strict). Remove them
+          # before Xcode signs the app bundle.
+          FWDIR="${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}"
+          [ -d "$FWDIR" ] || exit 0
+          rm -rf "$FWDIR/onnxruntime.framework" "$FWDIR/SherpaOnnxC.framework"
+          rmdir "$FWDIR" 2>/dev/null || true

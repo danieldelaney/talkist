@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Talkist
+GenericName=Voice dictation
+Comment=Local push-to-talk dictation with NVIDIA Parakeet
+Exec=talkist
+Icon=talkist
+Terminal=false
+Categories=Utility;AudioVideo;
+Keywords=dictation;speech;voice;stt;
+StartupNotify=false
