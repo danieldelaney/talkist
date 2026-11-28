@@ -3,20 +3,28 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Talkist — Local-only dictation for Linux and macOS</title>
-    <meta name="description" content="Dead-simple local dictation for macOS and Linux. Install, hold a hotkey, talk, release. No configuration required. No cloud ever." />
+    <title>Talkist — Local-only dictation for macOS and Linux</title>
+    <meta name="description" content="Free, open-source push-to-talk dictation for macOS and Linux. Local only, zero config. Hold a key, talk, release." />
+    <meta property="og:title" content="Talkist" />
+    <meta property="og:description" content="Free, open-source push-to-talk dictation for macOS and Linux. Local only, zero config." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://danieldelaney.net/talkist/" />
+    <meta property="og:image" content="https://danieldelaney.net/talkist/icon.png" />
     <link rel="icon" type="image/png" href="icon.png" />
     <style>
       :root {
         color-scheme: dark;
-        --bg: #16181d;
-        --border: #2e333e;
-        --border-strong: #454a56;
-        --text: #f1f2f4;
-        --muted: #9ba1ac;
-        --dim: #6f7682;
-        --accent: #407fee;
-        --accent-hover: #538df2;
+        --bg: #131519;
+        --surface: #1a1d24;
+        --surface-deep: #0e1014;
+        --border: rgba(255, 255, 255, 0.075);
+        --border-strong: rgba(255, 255, 255, 0.14);
+        --text: #f0f2f6;
+        --muted: #969eab;
+        --dim: #666e7b;
+        --teal: #14b8a6;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
       }
 
       * { box-sizing: border-box; }
@@ -24,97 +32,286 @@
       body {
         margin: 0;
         min-height: 100vh;
-        display: flex;
-        flex-direction: column;
         background: var(--bg);
         color: var(--text);
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-        line-height: 1.55;
+        font-family: var(--sans);
+        font-size: 14.5px;
+        line-height: 1.58;
         -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
       }
 
-      main {
-        flex: 1;
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .wrap {
         width: 100%;
-        max-width: 720px;
+        max-width: 620px;
         margin: 0 auto;
-        padding: 48px 24px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        gap: 16px;
+        padding: clamp(48px, 9vh, 88px) 24px 48px;
       }
 
-      .app-icon {
-        width: 72px;
-        height: 72px;
-        border-radius: 16px;
-        filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.45));
+      /* ── Unit 1: Identity + Action (tightly grouped) ─────────────────────── */
+      .head {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+      }
+
+      .head img {
+        width: 38px;
+        height: 38px;
+        display: block;
+        flex-shrink: 0;
       }
 
       h1 {
         margin: 0;
-        font-size: 36px;
+        font-size: 30px;
         font-weight: 700;
-        letter-spacing: -0.025em;
+        letter-spacing: -0.032em;
+        line-height: 1;
       }
 
-      .tagline {
-        margin: 0;
-        max-width: 520px;
-        font-size: 16px;
+      .summary {
+        margin: 16px 0 0;
+        max-width: 48ch;
+        font-size: 16.5px;
         color: var(--muted);
+        line-height: 1.5;
+        letter-spacing: -0.008em;
       }
 
-      .install-box {
-        margin-top: 12px;
-        width: fit-content;
-        max-width: 100%;
+      .install {
+        margin-top: 26px;
+      }
+
+      .install-bar {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        padding: 10px 12px 10px 18px;
-        border-radius: 12px;
+        gap: 10px;
+        padding: 6px 6px 6px 14px;
+        border-radius: 10px;
         border: 1px solid var(--border-strong);
-        background: #101217;
-        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+        background: var(--surface-deep);
       }
 
       .install-cmd {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-        font-size: 13px;
-        color: #e6ebf4;
+        flex: 1;
+        min-width: 0;
         overflow-x: auto;
         white-space: nowrap;
-        text-align: left;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        color: #e4e9f2;
+        scrollbar-width: none;
       }
+      .install-cmd::-webkit-scrollbar { display: none; }
 
       .btn-copy {
         flex-shrink: 0;
         padding: 7px 14px;
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.14);
-        background: var(--accent);
-        color: #fff;
+        border-radius: 7px;
+        border: 0;
+        background: var(--text);
+        color: var(--bg);
         font: inherit;
-        font-size: 13px;
+        font-size: 12.5px;
         font-weight: 600;
         cursor: pointer;
         transition: background 120ms ease, transform 80ms ease;
       }
 
-      .btn-copy:hover { background: var(--accent-hover); }
+      .btn-copy:hover { background: #ffffff; }
       .btn-copy:active { transform: translateY(1px); }
+      .btn-copy.copied {
+        background: var(--teal);
+        color: #05211e;
+      }
 
-      footer {
-        width: 100%;
-        max-width: 720px;
-        margin: 0 auto;
-        padding: 20px 24px 28px;
+      .links {
+        margin-top: 11px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 18px;
+        font-size: 13px;
+      }
+
+      .links a {
+        color: var(--muted);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+        padding-bottom: 1px;
+        transition: color 120ms ease, border-color 120ms ease;
+      }
+
+      .links a:hover {
+        color: var(--text);
+        border-color: var(--text);
+      }
+
+      /* ── Unit 2: Cropped OS Menu Bar Frame (asymmetric gestalt) ──────────── */
+      .ui-frame {
+        margin: 56px 0 0;
+        border-radius: 13px;
+        border: 1px solid var(--border);
+        background:
+          radial-gradient(520px 220px at 85% 0%, rgba(255, 255, 255, 0.045), transparent 72%),
+          var(--surface-deep);
+        overflow: hidden;
+        position: relative;
+      }
+
+      .menubar {
+        height: 30px;
+        padding: 0 26px;
+        border-bottom: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.028);
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 14px;
+      }
+
+      .menubar-slot {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 3px 7px;
+        border-radius: 5px;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .tray-icon {
+        width: 17px;
+        height: 17px;
+        border-radius: 4.5px;
+        border: 1.7px solid #eef0f4;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 800;
+        color: #f0f2f6;
+        line-height: 1;
+      }
+
+      .menubar-time {
+        font-size: 11.5px;
+        font-weight: 500;
+        color: var(--dim);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .frame-body {
+        padding: 10px 26px 26px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        min-height: 196px;
+      }
+
+      .ui-caption {
+        margin: 0;
+        padding-bottom: 4px;
+        font-size: 13px;
+        color: var(--dim);
+      }
+
+      .tray-menu {
+        width: 218px;
+        flex-shrink: 0;
+        margin-right: 38px;
+        border-radius: 10px;
+        border: 1px solid var(--border-strong);
+        background: #1d2129;
+        box-shadow:
+          0 20px 44px rgba(0, 0, 0, 0.6),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        padding: 5px;
+        font-size: 13px;
+        align-self: flex-start;
+      }
+
+      .tray-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 10px;
+        border-radius: 6px;
+      }
+
+      .tray-row.dim {
+        color: var(--dim);
+        font-size: 12px;
+      }
+
+      .tray-row.hi {
+        background: rgba(255, 255, 255, 0.075);
+      }
+
+      .tray-sep {
+        height: 1px;
+        margin: 4px 7px;
+        background: var(--border);
+      }
+
+      .menu-kbd {
+        padding: 1px 6px;
+        border-radius: 4px;
+        border: 1px solid var(--border-strong);
+        background: #282d37;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--text);
+      }
+
+      .menu-check {
+        color: var(--teal);
+        font-weight: 700;
+      }
+
+      /* ── Unit 3: Spec-sheet Facts (scannable left rail) ──────────────────── */
+      .facts {
+        margin: 52px 0 0;
         border-top: 1px solid var(--border);
+      }
+
+      .fact {
+        display: grid;
+        grid-template-columns: 164px 1fr;
+        gap: 8px 24px;
+        padding: 18px 0;
+        border-bottom: 1px solid var(--border);
+        align-items: baseline;
+      }
+
+      .fact dt {
+        font-weight: 600;
+        color: var(--text);
+        letter-spacing: -0.01em;
+      }
+
+      .fact dd {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .fact dd a {
+        color: var(--text);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        padding-bottom: 1px;
+      }
+
+      .fact dd a:hover {
+        border-color: var(--text);
+      }
+
+      /* ── Footer ──────────────────────────────────────────────────────────── */
+      footer {
+        margin-top: 40px;
         display: flex;
         flex-wrap: wrap;
         justify-content: space-between;
@@ -125,36 +322,126 @@
 
       footer a {
         color: var(--muted);
-        text-decoration: none;
       }
 
-      footer a:hover { color: var(--text); text-decoration: underline; }
+      footer a:hover {
+        color: var(--text);
+      }
+
+      @media (max-width: 540px) {
+        .wrap { padding: 36px 20px 36px; }
+        .frame-body {
+          flex-direction: column-reverse;
+          align-items: center;
+          padding: 14px 18px 22px;
+          gap: 18px;
+          min-height: 0;
+        }
+        .tray-menu { align-self: center; margin-right: 0; }
+        .menubar { justify-content: center; padding: 0 18px; }
+        .menubar-time { display: none; }
+        .fact {
+          grid-template-columns: 1fr;
+          gap: 4px;
+          padding: 16px 0;
+        }
+      }
     </style>
   </head>
   <body>
-    <main>
-      <img class="app-icon" src="icon.png" alt="Talkist icon" width="72" height="72" />
-      <h1>Talkist</h1>
-      <p class="tagline">Dead-simple local dictation for macOS and Linux. Install, hold a hotkey, talk, release. No configuration required. No cloud ever.</p>
-      <div class="install-box">
-        <span class="install-cmd" id="install-cmd">curl -fsSL https://danieldelaney.net/talkist/install.sh | sh</span>
-        <button class="btn-copy" id="copy-btn" type="button">Copy</button>
-      </div>
-    </main>
+    <div class="wrap">
+      <main>
+        <div class="head">
+          <img src="icon.png" alt="Talkist icon" width="38" height="38" />
+          <h1>Talkist</h1>
+        </div>
 
-    <footer>
-      <span>Built by <a href="https://danieldelaney.net">Daniel Delaney</a></span>
-      <a href="https://github.com/danieldelaney/talkist">GitHub</a>
-    </footer>
+        <p class="summary">
+          Free, open-source push-to-talk dictation for macOS and Linux.
+          Hold a key, talk, release.
+        </p>
+
+        <div class="install">
+          <div class="install-bar">
+            <code class="install-cmd" id="install-cmd">curl -fsSL https://danieldelaney.net/talkist/install.sh | sh</code>
+            <button class="btn-copy" id="copy-btn" type="button">Copy</button>
+          </div>
+          <div class="links">
+            <a href="https://github.com/danieldelaney/talkist/releases/latest">Download packages (macOS, .deb, .rpm, Flatpak)</a>
+            <a href="https://github.com/danieldelaney/talkist">Source</a>
+          </div>
+        </div>
+
+        <figure class="ui-frame">
+          <div class="menubar" aria-hidden="true">
+            <span class="menubar-slot"><span class="tray-icon">T</span></span>
+            <span class="menubar-time">9:41</span>
+          </div>
+          <div class="frame-body">
+            <figcaption class="ui-caption">This is the whole UI.</figcaption>
+            <div class="tray-menu" aria-label="Talkist tray menu">
+              <div class="tray-row dim">Talkist 1.0</div>
+              <div class="tray-sep"></div>
+              <div class="tray-row hi">
+                <span>Hotkey</span>
+                <span class="menu-kbd">F9</span>
+              </div>
+              <div class="tray-row">
+                <span>Start at login</span>
+                <span class="menu-check">✓</span>
+              </div>
+              <div class="tray-sep"></div>
+              <div class="tray-row dim">Quit</div>
+            </div>
+          </div>
+        </figure>
+
+        <dl class="facts">
+          <div class="fact">
+            <dt>Local only</dt>
+            <dd>
+              No cloud backend, no account, no telemetry. Runs on your machine using
+              NVIDIA Parakeet v3 (25 languages, auto-detected).
+            </dd>
+          </div>
+          <div class="fact">
+            <dt>Zero config</dt>
+            <dd>
+              Downloads the speech model on first launch. The only prompt is OS
+              permissions on macOS or Wayland.
+            </dd>
+          </div>
+          <div class="fact">
+            <dt>Free &amp; open source</dt>
+            <dd>
+              No trial, no subscription. Inspect the code or build it yourself on
+              <a href="https://github.com/danieldelaney/talkist">GitHub</a>.
+            </dd>
+          </div>
+        </dl>
+      </main>
+
+      <footer>
+        <span>Built by <a href="https://danieldelaney.net">Daniel De Laney</a></span>
+        <a href="https://github.com/danieldelaney/talkist">GitHub</a>
+      </footer>
+    </div>
 
     <script>
       const copyBtn = document.getElementById("copy-btn");
       const installCmd = document.getElementById("install-cmd").textContent;
+      let copyTimer = null;
+
       copyBtn.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(installCmd);
           copyBtn.textContent = "Copied";
-          setTimeout(() => { copyBtn.textContent = "Copy"; }, 1800);
+          copyBtn.classList.add("copied");
+          clearTimeout(copyTimer);
+          copyTimer = setTimeout(() => {
+            copyBtn.textContent = "Copy";
+            copyBtn.classList.remove("copied");
+          }, 1800);
         } catch {
           const range = document.createRange();
           range.selectNodeContents(document.getElementById("install-cmd"));
